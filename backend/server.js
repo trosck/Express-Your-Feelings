@@ -1,5 +1,6 @@
 const express = require("express");
 const { uid } = require("uid");
+const cors = require("cors");
 const app = express();
 
 const task = {
@@ -12,6 +13,7 @@ const port = process.env.PORT || 5000;
 
 const tasks = new Map();
 
+app.use(cors());
 app.use(express.json());
 
 /**
