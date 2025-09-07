@@ -1,68 +1,57 @@
+/**
+ * @fileoverview Task Manager service for handling task CRUD operations and validation
+ * Provides in-memory task storage and management functionality
+ * @author Task Manager Team
+ * @version 1.0.0
+ */
+
 const { uid } = require("uid");
+const ValidationError = require("../errors/ValidationError");
 
-// Valid task statuses
-const VALID_STATUSES = ['pending', 'in progress', 'completed'];
-
+/**
+ * Task Manager class for handling task operations
+ * Manages tasks using an in-memory Map for storage
+ */
 class TaskManager {
+  /**
+   * Create a new TaskManager instance
+   * Initializes the in-memory task storage
+   */
   constructor() {
+    /** @type {Map<string, Object>} In-memory storage for tasks */
     this.tasks = new Map();
   }
 
   /**
-   * Validate task data
-   * @param {Object} taskData - Task data to validate
-   * @param {boolean} isUpdate - Whether this is an update operation
-   * @returns {Array} - Array of validation errors
-   */
-  validateTask(taskData, isUpdate = false) {
-    const errors = [];
-
-    if (!isUpdate && (!taskData.title || typeof taskData.title !== "string")) {
-      errors.push("Title is required and must be a string");
-    }
-
-    if (taskData.title && typeof taskData.title !== "string") {
-      errors.push("Title must be a string");
-    }
-
-    if (taskData.description && typeof taskData.description !== "string") {
-      errors.push("Description must be a string");
-    }
-
-    if (taskData.status && !VALID_STATUSES.includes(taskData.status)) {
-      errors.push(`Status must be one of: ${VALID_STATUSES.join(', ')}`);
-    }
-
-    return errors;
-  }
-
-  /**
-   * Get all tasks
-   * @returns {Array} - Array of all tasks
+   * Get all tasks from storage
+   * @returns {Object[]} Array of all tasks
    */
   getAllTasks() {
     return [...this.tasks.values()];
   }
 
   /**
-   * Get a task by ID
-   * @param {string} id - Task ID
-   * @returns {Object|null} - Task object or null if not found
+   * Get a specific task by ID
+   * @param {string} id - Task ID to retrieve
+   * @returns {Object|null} Task object if found, null otherwise
    */
   getTask(id) {
     return this.tasks.get(id) || null;
   }
 
   /**
-   * Create a new task
+   * Create a new task with validation
    * @param {Object} taskData - Task data to create
-   * @returns {Object} - Created task object
-   * @throws {Error} - If validation fails
+   * @param {string} taskData.title - Task title (required)
+   * @param {string} [taskData.description] - Task description (optional)
+   * @param {string} [taskData.status] - Task status (optional, defaults to 'pending')
+   * @returns {Object} Created task object with generated ID and timestamps
+   * @throws {ValidationError} If validation fails
    */
   createTask(taskData) {
     const validationErrors = this.validateTask(taskData);
     if (validationErrors.length > 0) {
-      throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
+      throw new ValidationError(validationErrors.join(', '));
     }
 
     const task = {
@@ -79,11 +68,14 @@ class TaskManager {
   }
 
   /**
-   * Update a task
-   * @param {string} id - Task ID
-   * @param {Object} taskData - Task data to update
-   * @returns {Object|null} - Updated task object or null if not found
-   * @throws {Error} - If validation fails
+   * Update an existing task with validation
+   * @param {string} id - Task ID to update
+   * @param {Object} taskData - Updated task data
+   * @param {string} [taskData.title] - Updated task title
+   * @param {string} [taskData.description] - Updated task description
+   * @param {string} [taskData.status] - Updated task status
+   * @returns {Object|null} Updated task object if found, null if task doesn't exist
+   * @throws {ValidationError} If validation fails
    */
   updateTask(id, taskData) {
     const task = this.tasks.get(id);
@@ -93,7 +85,7 @@ class TaskManager {
 
     const validationErrors = this.validateTask(taskData, true);
     if (validationErrors.length > 0) {
-      throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
+      throw new ValidationError(validationErrors.join(', '));
     }
 
     const updatedTask = {
@@ -107,17 +99,22 @@ class TaskManager {
   }
 
   /**
-   * Delete a task
-   * @param {string} id - Task ID
-   * @returns {boolean} - True if task was deleted, false if not found
+   * Delete a task by ID
+   * @param {string} id - Task ID to delete
+   * @returns {boolean} True if task was deleted, false if task was not found
    */
   deleteTask(id) {
     return this.tasks.delete(id);
   }
 
   /**
-   * Get task statistics
-   * @returns {Object} - Statistics about tasks
+   * Get task statistics including total count and status breakdown
+   * @returns {Object} Statistics object with total count and status counts
+   * @returns {number} returns.total - Total number of tasks
+   * @returns {Object} returns.byStatus - Task counts grouped by status
+   * @returns {number} returns.byStatus.pending - Number of pending tasks
+   * @returns {number} returns.byStatus['in progress'] - Number of in-progress tasks
+   * @returns {number} returns.byStatus.completed - Number of completed tasks
    */
   getStats() {
     const tasks = this.getAllTasks();
@@ -140,11 +137,45 @@ class TaskManager {
   }
 
   /**
-   * Clear all tasks (for testing purposes)
+   * Validate task data according to business rules
+   * @param {Object} taskData - Task data to validate
+   * @param {boolean} [isUpdate=false] - Whether this is an update operation (makes title optional)
+   * @returns {string[]} Array of validation error messages (empty if valid)
+   * @private
+   */
+  validateTask(taskData, isUpdate = false) {
+    const errors = [];
+    const validStatuses = ['pending', 'in progress', 'completed'];
+
+    // Title validation
+    if (!isUpdate && (!taskData.title || typeof taskData.title !== "string")) {
+      errors.push("Title is required and must be a string");
+    }
+
+    if (taskData.title && typeof taskData.title !== "string") {
+      errors.push("Title must be a string");
+    }
+
+    // Description validation
+    if (taskData.description && typeof taskData.description !== "string") {
+      errors.push("Description must be a string");
+    }
+
+    // Status validation
+    if (taskData.status && !validStatuses.includes(taskData.status)) {
+      errors.push(`Status must be one of: ${validStatuses.join(', ')}`);
+    }
+
+    return errors;
+  }
+
+  /**
+   * Clear all tasks from storage (primarily for testing purposes)
+   * @returns {void}
    */
   clearAll() {
     this.tasks.clear();
   }
 }
 
-module.exports = TaskManager; 
+module.exports = TaskManager;
